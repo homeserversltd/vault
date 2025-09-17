@@ -22,7 +22,6 @@ from src.rpc import set_transmission_peer_port
 # --- Configuration ---
 VAULT_DIR = Path("/vault")
 KEYS_DIR = VAULT_DIR / ".keys"
-PIA_CONN_SCRIPT = VAULT_DIR / "scripts" / "manual-connections" / "run_setup.sh"
 
 # Service name constants - use consistent lowercase
 PIA_SERVICE_NAME = "pia"
@@ -337,9 +336,6 @@ def main():
         sys.exit(1)
     if not KEYS_DIR.joinpath(f"{TRANSMISSION_SERVICE_NAME}.key").is_file():
         log_message(1, f"No transmission service key found in {KEYS_DIR}")
-        sys.exit(1)
-    if not PIA_CONN_SCRIPT.is_file() or not os.access(PIA_CONN_SCRIPT, os.X_OK):
-        log_message(1, f"PIA connection script not found or not executable: {PIA_CONN_SCRIPT}")
         sys.exit(1)
         
     # Check required commands exist

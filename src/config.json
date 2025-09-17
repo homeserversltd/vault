@@ -1,0 +1,44 @@
+{
+  "network": {
+    "wan_interface": "enp1s0",
+    "lan_interface": "enp2s0", 
+    "vpn_interface": "veth0",
+    "vpn_peer_interface": "veth1",
+    "vpn_namespace": "vpn",
+    "host_veth_ip": "192.168.2.1",
+    "namespace_veth_ip": "192.168.2.2",
+    "veth_subnet": "24",
+    "dns_server": "1.1.1.1"
+  },
+  "services": {
+    "pia_service_name": "pia",
+    "transmission_service_name": "transmission",
+    "transmission_port": 9091,
+    "transmission_bind_ip": "0.0.0.0",
+    "vpn_max_retries": 5,
+    "vpn_retry_delay": 30,
+    "vpn_file_check_retries": 3,
+    "vpn_file_check_delay": 10,
+    "transmission_max_retries": 3,
+    "transmission_retry_delay": 10,
+    "transmission_startup_delay": 5,
+    "transmission_config_delay": 5
+  },
+  "security": {
+    "secure_credential_cleanup": true,
+    "auth_file_permissions": 384,
+    "require_sudo": true,
+    "validate_sudo_access": true,
+    "secure_temp_files": true
+  },
+  "logging": {
+    "default_verbosity": 3,
+    "log_to_file": true,
+    "log_to_console_on_debug": true
+  },
+  "environment": {
+    "environment": "production",
+    "debug_mode": false,
+    "strict_validation": true
+  }
+}

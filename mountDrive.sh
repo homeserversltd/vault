@@ -11,10 +11,21 @@
 LOCK_FILE="/var/run/mountDrive.lock"
 LOCK_TIMEOUT=30
 
-# Function to log messages to both stdout and syslog
+# mountDrive-specific log configuration (separate from homeserver.log)
+LOG_DIR="/var/log/homeserver"
+LOG_FILE="${LOG_DIR}/mountDrive.log"
+
+# Function to log messages to stdout, syslog, and Homeserver log
 log_message() {
-    echo "[DISKMAN] $1"
-    logger -t "mountDrive" "[DISKMAN] $1"
+    local msg="[DISKMAN] $1"
+    echo "$msg"
+    logger -t "mountDrive" "$msg"
+
+    # Attempt to write to dedicated mountDrive log for deeper troubleshooting
+    if { [ -d "$LOG_DIR" ] || mkdir -p "$LOG_DIR"; } 2>/dev/null; then
+        # Use a concise timestamp for consistency with other logs
+        printf '%s [mountDrive] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$msg" >> "$LOG_FILE" 2>/dev/null || true
+    fi
 }
 
 # Function to acquire lock
@@ -174,6 +185,9 @@ ACTION="$1"
 DEVICE="$2"
 MOUNT_POINT="$3"
 MAPPER_NAME="$4"
+
+# High-level invocation context
+log_message "Invocation received - action: ${ACTION}, device: ${DEVICE}, mount_point: ${MOUNT_POINT}, mapper: ${MAPPER_NAME}"
 
 # Remove trailing slash from mount point if present
 MOUNT_POINT="${MOUNT_POINT%/}"

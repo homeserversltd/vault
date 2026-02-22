@@ -6,9 +6,9 @@ source /vault/keyman/utils.sh
 # ============================================================================
 # DRIVE DETECTION CONFIGURATION
 # ============================================================================
-# Set to "sda_boot" for SDA boot media scenarios (live homeserver)
-# Set to "legacy_nvme" for original NVMe/SATA detection logic  
-DRIVE_DETECTION_MODE="sda_boot"
+# Set to "partlabel" for PARTLABEL-based detection (vault via by-partlabel, NAS by label)
+# Set to "legacy_nvme" for original NVMe/SATA detection logic (deprecated)
+DRIVE_DETECTION_MODE="partlabel"
 
 # Debug logging setup
 DEBUG_LOG="/tmp/init_homeserver.log"
@@ -154,45 +154,57 @@ detect_nas_drives() {
     local candidate_drives=()
     local boot_drive=""
     
-    # Determine boot drive to exclude from candidates
-    if [[ "$DRIVE_DETECTION_MODE" == "sda_boot" ]]; then
-        debug_log "SDA boot mode - Excluding sda, scanning all other drives"
-        boot_drive="sda"
+    # Determine drives to exclude (system) and scan for NAS candidates
+    if [[ "$DRIVE_DETECTION_MODE" == "partlabel" ]]; then
+        debug_log "PARTLABEL mode - Excluding system by-partlabel drives, scanning by-partlabel and block devices"
+        local exclude_system=()
+        local by_partlabel_dir="/dev/disk/by-partlabel"
+        local system_labels="homeserver-boot-efi homeserver-boot homeserver-swap homeserver-vault homeserver-deploy homeserver-root"
+        for label in $system_labels; do
+            if [[ -b "$by_partlabel_dir/$label" ]]; then
+                local resolved=$(readlink -f "$by_partlabel_dir/$label" 2>/dev/null)
+                [[ -n "$resolved" ]] && exclude_system+=("$resolved")
+            fi
+        done
+        # Scan by-partlabel for NAS labels first
+        for label in homeserver-primary-nas homeserver-backup-nas; do
+            if [[ -b "$by_partlabel_dir/$label" ]]; then
+                candidate_drives+=("$(readlink -f "$by_partlabel_dir/$label" 2>/dev/null)")
+            fi
+        done
+        # Scan block devices (sd*, nvme*), excluding system
+        for block in /dev/sd? /dev/nvme?n? /dev/nvme?n?p?; do
+            [[ ! -b "$block" ]] && continue
+            local real=$(readlink -f "$block" 2>/dev/null)
+            local skip=0
+            for ex in "${exclude_system[@]}"; do [[ "$real" == "$ex" ]] && skip=1 && break; done
+            if [[ $skip -eq 0 ]]; then
+                # Only add whole disks (not partitions) for NAS candidate scan
+                [[ "$block" =~ ^/dev/sd[a-z]$ ]] && candidate_drives+=("$block")
+                [[ "$block" =~ ^/dev/nvme[0-9]+n[0-9]+$ ]] && candidate_drives+=("$block")
+            fi
+        done
     elif [[ "$DRIVE_DETECTION_MODE" == "legacy_nvme" ]]; then
         if [[ "$root_device" =~ nvme ]]; then
             debug_log "Legacy mode - Root is on NVMe, scanning all SATA drives"
-            boot_drive=""  # No SATA boot drive to exclude
+            boot_drive=""
         else
             debug_log "Legacy mode - Root is on SATA, excluding root drive from scan"
-            # Extract drive name from root device (e.g., /dev/sda1 -> sda)
-            boot_drive=$(echo "$root_device" | sed 's|/dev/||' | sed 's|[0-9]*$||')
+            boot_drive=$(echo "$root_device" | sed 's|/dev/||' | sed 's|[0-9]*$||' | sed 's|p$||')
         fi
+        for drive_letter in {b..z}; do
+            local drive_name="sd${drive_letter}"
+            local device_path="/dev/${drive_name}"
+            [[ "$drive_name" == "$boot_drive" ]] && continue
+            [[ -b "$device_path" ]] && candidate_drives+=("$device_path")
+        done
     else
         error_log "Unknown DRIVE_DETECTION_MODE: $DRIVE_DETECTION_MODE"
-        error_log "Valid modes: 'sda_boot', 'legacy_nvme'"
+        error_log "Valid modes: 'partlabel', 'legacy_nvme'"
         return 0
     fi
     
-    # Scan for all available drives beyond 'a' (sdb, sdc, sdd, etc.)
-    debug_log "Scanning for available drives (excluding boot drive: $boot_drive)"
-    for drive_letter in {b..z}; do
-        local drive_name="sd${drive_letter}"
-        local device_path="/dev/${drive_name}"
-        
-        # Skip if this is the boot drive
-        if [[ "$drive_name" == "$boot_drive" ]]; then
-            debug_log "Skipping boot drive: $device_path"
-            continue
-        fi
-        
-        # Check if drive exists
-        if [[ -b "$device_path" ]]; then
-            debug_log "Found drive: $device_path"
-            candidate_drives+=("$device_path")
-        else
-            debug_log "Drive $device_path does not exist"
-        fi
-    done
+    debug_log "Scanning for available drives (candidates: ${#candidate_drives[@]})"
     
     debug_log "Found ${#candidate_drives[@]} candidate drives: ${candidate_drives[*]}"
     

@@ -2,10 +2,10 @@
 
 # mountDrive.sh - Helper script to mount drives using systemd services
 # Usage: mountDrive.sh <action> <device> <mount_point> [mapper_name]
-# Example: mountDrive.sh mount sda1 /mnt/nas
-# Example: mountDrive.sh mount sdb1 /mnt/nas_backup encrypted_sdb1
-# Example: mountDrive.sh unmount sda1 /mnt/nas
-# Example: mountDrive.sh unmount sdb1 /mnt/nas_backup encrypted_sdb1
+# Example: mountDrive.sh mount /dev/disk/by-partlabel/homeserver-primary-nas /mnt/nas
+# Example: mountDrive.sh mount /dev/disk/by-partlabel/homeserver-backup-nas /mnt/nas_backup homeserver-backup-nas_crypt
+# Example: mountDrive.sh unmount /dev/disk/by-partlabel/homeserver-primary-nas /mnt/nas
+# Example: mountDrive.sh unmount /dev/disk/by-partlabel/homeserver-backup-nas /mnt/nas_backup homeserver-backup-nas_crypt
 
 # Lock file for preventing concurrent execution
 LOCK_FILE="/var/run/mountDrive.lock"

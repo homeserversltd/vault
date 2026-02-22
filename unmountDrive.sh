@@ -2,7 +2,7 @@
 
 # unmountDrive.sh - Specialized script for unmounting drives and closing LUKS containers
 # Usage: unmountDrive.sh <device> <mount_point> [mapper_name]
-# Example: unmountDrive.sh /dev/sda1 /mnt/nas
+# Example: unmountDrive.sh /dev/disk/by-partlabel/homeserver-primary-nas /mnt/nas
 # Example: unmountDrive.sh /dev/sdb1 /mnt/nas_backup encrypted_sdb1
 
 # Lock file for preventing concurrent execution

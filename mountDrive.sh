@@ -192,6 +192,13 @@ log_message "Invocation received - action: ${ACTION}, device: ${DEVICE}, mount_p
 # Remove trailing slash from mount point if present
 MOUNT_POINT="${MOUNT_POINT%/}"
 
+# Which NAS key to use for LUKS open: backup mount point uses nas_backup key
+if [ "$MOUNT_POINT" = "/mnt/nas_backup" ]; then
+    NAS_KEY_NAME="nas_backup"
+else
+    NAS_KEY_NAME="nas"
+fi
+
 # Ensure device path is correct
 if [[ ! "$DEVICE" =~ ^/dev/ ]]; then
     DEVICE="/dev/$DEVICE"
@@ -305,8 +312,8 @@ case "${ACTION}" in
             
             # Verify we can access the NAS key - only needed if mapper doesn't exist
             if [ "$MAPPER_ALREADY_EXISTS" = false ]; then
-                log_message "Verifying NAS key access"
-                NAS_KEY_OUTPUT=$(/vault/scripts/exportNAS.sh 2>&1)
+                log_message "Verifying NAS key access (key: $NAS_KEY_NAME)"
+                NAS_KEY_OUTPUT=$(/vault/scripts/exportNAS.sh "$NAS_KEY_NAME" 2>&1)
                 if [ $? -ne 0 ]; then
                     log_message "ERROR: Failed to access NAS key: $NAS_KEY_OUTPUT"
                     cleanup_partial_failure "$SERVICE_NAME" "$MOUNT_UNIT" "$MOUNT_POINT" "$MAPPER_NAME"
@@ -346,7 +353,7 @@ After=local-fs.target
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/usr/bin/bash -c "/vault/scripts/exportNAS.sh | /usr/sbin/cryptsetup luksOpen $DEVICE $MAPPER_NAME"
+ExecStart=/usr/bin/bash -c "/vault/scripts/exportNAS.sh $NAS_KEY_NAME | /usr/sbin/cryptsetup luksOpen $DEVICE $MAPPER_NAME"
 ExecStop=/usr/bin/bash -c "/vault/scripts/closeNAS.sh $MAPPER_NAME $MOUNT_POINT"
 
 [Install]

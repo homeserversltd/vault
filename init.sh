@@ -59,13 +59,15 @@ validate_mounts() {
         debug_log "/vault is properly mounted"
     fi
 
-    # Create /mnt/nas if it doesn't exist
-    if [[ ! -d "/mnt/nas" ]]; then
-        debug_log "Creating /mnt/nas directory"
-        mkdir -p /mnt/nas
-    else
-        debug_log "/mnt/nas directory already exists"
-    fi
+    # Create /mnt/nas and /mnt/nas_backup if they don't exist
+    for mp in /mnt/nas /mnt/nas_backup; do
+        if [[ ! -d "$mp" ]]; then
+            debug_log "Creating $mp directory"
+            mkdir -p "$mp"
+        else
+            debug_log "$mp directory already exists"
+        fi
+    done
 
     debug_log "Mount validation completed successfully"
     return 0
@@ -530,7 +532,7 @@ print_final_report() {
 # Check if init.sh is already running to prevent concurrent execution
 INIT_LOCK="/var/run/init_homeserver.lock"
 if [ -f "$INIT_LOCK" ]; then
-    local lock_pid=$(cat "$INIT_LOCK" 2>/dev/null)
+    lock_pid=$(cat "$INIT_LOCK" 2>/dev/null)
     if [ -n "$lock_pid" ] && kill -0 "$lock_pid" 2>/dev/null; then
         info_log "init.sh is already running (PID: $lock_pid), exiting"
         exit 0

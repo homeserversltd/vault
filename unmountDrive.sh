@@ -308,6 +308,14 @@ fi
 
 # Verify the unmount/closure was successful
 if [ "$IS_ENCRYPTED" = true ]; then
+    # Brief retry: udev may remove the mapper node shortly after cryptsetup close
+    for _ in 1 2 3; do
+        if [ ! -e "/dev/mapper/$MAPPER_NAME" ]; then
+            break
+        fi
+        log_message "Mapper still present, waiting 1s for udev..."
+        sleep 1
+    done
     if [ -e "/dev/mapper/$MAPPER_NAME" ]; then
         log_message "ERROR: LUKS container closure failed - mapper still exists"
         cleanup_partial_failure "$SERVICE_NAME" "$MOUNT_UNIT" "$MOUNT_POINT" "$MAPPER_NAME"

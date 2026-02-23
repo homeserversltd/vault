@@ -166,7 +166,26 @@ detect_nas_drives() {
                 [[ -n "$resolved" ]] && exclude_system+=("$resolved")
             fi
         done
-        # Scan by-partlabel for NAS labels first
+        # First: set NAS primary/backup from PARTLABEL if present (assign wins)
+        if [[ -b "$by_partlabel_dir/homeserver-primary-nas" ]]; then
+            local primary_resolved
+            primary_resolved=$(readlink -f "$by_partlabel_dir/homeserver-primary-nas" 2>/dev/null)
+            if [[ -n "$primary_resolved" ]] && validate_nas_compatibility "$primary_resolved"; then
+                export nas_DRIVE="$primary_resolved"
+                ((drives_found++)) || true
+                debug_log "Assigned primary NAS from PARTLABEL: $nas_DRIVE"
+            fi
+        fi
+        if [[ -b "$by_partlabel_dir/homeserver-backup-nas" ]]; then
+            local backup_resolved
+            backup_resolved=$(readlink -f "$by_partlabel_dir/homeserver-backup-nas" 2>/dev/null)
+            if [[ -n "$backup_resolved" ]] && validate_nas_compatibility "$backup_resolved"; then
+                export nas_BACKUP_DRIVE="$backup_resolved"
+                ((drives_found++)) || true
+                debug_log "Assigned backup NAS from PARTLABEL: $nas_BACKUP_DRIVE"
+            fi
+        fi
+        # Scan by-partlabel for NAS labels (for candidate list; may duplicate above)
         for label in homeserver-primary-nas homeserver-backup-nas; do
             if [[ -b "$by_partlabel_dir/$label" ]]; then
                 candidate_drives+=("$(readlink -f "$by_partlabel_dir/$label" 2>/dev/null)")
@@ -230,26 +249,25 @@ detect_nas_drives() {
     
     debug_log "Found ${#compatible_drives[@]} NAS-compatible drives"
     
-    # Sort drives by size (largest first) and assign roles
+    # Fallback: sort by size (largest first) and fill any empty NAS slots ("most full" = probably NAS)
     if [[ ${#compatible_drives[@]} -gt 0 ]]; then
-        # Sort by size (numeric, reverse order for largest first)
         IFS=$'\n' sorted_drives=($(sort -nr -t: -k1 <<< "${compatible_drives[*]}"))
-        
-        # Extract device paths and assign roles
         for drive_entry in "${sorted_drives[@]}"; do
-            local device="${drive_entry#*:}"  # Remove size prefix
-            local size_bytes="${drive_entry%:*}"  # Extract size
+            local device="${drive_entry#*:}"
+            local size_bytes="${drive_entry%:*}"
             local size_gb=$((size_bytes / 1024 / 1024 / 1024))
-            
+            # Skip if already assigned from PARTLABEL
+            [[ -n "$nas_DRIVE" && "$device" == "$nas_DRIVE" ]] && continue
+            [[ -n "$nas_BACKUP_DRIVE" && "$device" == "$nas_BACKUP_DRIVE" ]] && continue
             if [[ -z "$nas_DRIVE" ]]; then
                 export nas_DRIVE="$device"
                 ((drives_found++))
-                debug_log "Assigned $device (${size_gb}GB) as primary NAS drive"
+                debug_log "Assigned $device (${size_gb}GB) as primary NAS drive (fallback)"
             elif [[ -z "$nas_BACKUP_DRIVE" ]]; then
                 export nas_BACKUP_DRIVE="$device"
                 ((drives_found++))
-                debug_log "Assigned $device (${size_gb}GB) as backup NAS drive"
-                break  # We only need two drives
+                debug_log "Assigned $device (${size_gb}GB) as backup NAS drive (fallback)"
+                break
             fi
         done
     fi

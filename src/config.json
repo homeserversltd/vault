@@ -1,7 +1,7 @@
 {
   "network": {
-    "wan_interface": "enp1s0",
-    "lan_interface": "enp2s0", 
+    "wan_interface": "wan0",
+    "lan_interface": "lan0", 
     "vpn_interface": "veth0",
     "vpn_peer_interface": "veth1",
     "vpn_namespace": "vpn",

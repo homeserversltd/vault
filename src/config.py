@@ -25,8 +25,8 @@ from dataclasses import dataclass, field
 @dataclass
 class NetworkConfig:
     """Network interface and addressing configuration."""
-    wan_interface: str = "enp1s0"
-    lan_interface: str = "enp2s0"
+    wan_interface: str = "wan0"
+    lan_interface: str = "lan0"
     vpn_interface: str = "veth0"
     vpn_peer_interface: str = "veth1"
     vpn_namespace: str = "vpn"

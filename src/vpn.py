@@ -22,6 +22,7 @@ from .utils import (
     run_command, generate_compliant_mac_address, remove_rules_by_comment,
     terminate_processes, find_pids
 )
+from .config import get_network_config
 
 # --- Configuration ---
 VAULT_DIR = Path("/vault")
@@ -32,8 +33,6 @@ LOGS_DIR = RAMDISK_MNT / "logs"
 PORT_FILE = Path("/tmp/port.pid")
 
 # Network configuration
-WAN_IF = "enp1s0"    # WAN Interface
-LAN_IF = "enp2s0"    # LAN Interface
 VPN_IF = "veth0"     # Interface in the host, peer is veth1 in namespace
 VPN_NS = "vpn"
 VPN_PEER_IF = "veth1"
@@ -141,11 +140,12 @@ def allow_lan_to_vpn_traffic_port():
     """Adds nftables rules to allow LAN access to Transmission Web UI and NAT."""
     log_message(3, "Configuring firewall for LAN to VPN communication (Port 9091).")
     port = TRANSMISSION_PORT
+    network_config = get_network_config()
     try:
-        log_message(3, f"Allowing traffic from {LAN_IF} to {VPN_IF} on port {port}.")
+        log_message(3, f"Allowing traffic from {network_config.lan_interface} to {VPN_IF} on port {port}.")
         run_command(f'nft add rule inet filter forward iifname "{LAN_IF}" oifname "{VPN_IF}" tcp dport {port} accept comment "lan-to-vpn-traffic-port"', sudo=True, shell=True)
 
-        log_message(3, f"Allowing return traffic from {VPN_IF} to {LAN_IF} on port {port}.")
+        log_message(3, f"Allowing return traffic from {VPN_IF} to {network_config.lan_interface} on port {port}.")
         run_command(f'nft add rule inet filter forward iifname "{VPN_IF}" oifname "{LAN_IF}" tcp sport {port} accept comment "vpn-to-lan-traffic-port"', sudo=True, shell=True)
 
         log_message(3, f"Adding NAT masquerade rule for {VPN_IF}.")
@@ -166,13 +166,14 @@ def allow_lan_to_vpn_traffic_port():
 def allow_outbound_traffic():
     """Adds nftables rule to allow traffic from VPN namespace out via WAN."""
     log_message(3, "Configuring firewall for VPN outbound traffic.")
+    network_config = get_network_config()
     try:
-        log_message(3, f"Adding rule to allow outbound traffic from {VPN_IF} to {WAN_IF}.")
+        log_message(3, f"Adding rule to allow outbound traffic from {VPN_IF} to {network_config.wan_interface}.")
          # Check if rule exists before adding
         result = run_command("sudo nft list ruleset", capture_output=True, shell=True)
-        if f'iifname "{VPN_IF}" oifname "{WAN_IF}" accept comment "outbound-vpn-traffic"' not in result.stdout:
-            run_command(f'nft add rule inet filter forward iifname "{VPN_IF}" oifname "{WAN_IF}" accept comment "outbound-vpn-traffic"', sudo=True, shell=True)
-            log_message(2, f"Added rule to allow outbound traffic from {VPN_IF} to {WAN_IF}.")
+        if f'iifname "{VPN_IF}" oifname "{network_config.wan_interface}" accept comment "outbound-vpn-traffic"' not in result.stdout:
+            run_command(f'nft add rule inet filter forward iifname "{VPN_IF}" oifname "{network_config.wan_interface}" accept comment "outbound-vpn-traffic"', sudo=True, shell=True)
+            log_message(2, f"Added rule to allow outbound traffic from {VPN_IF} to {network_config.wan_interface}.")
         else:
             log_message(5, "Outbound VPN traffic rule already exists.")
 
@@ -190,7 +191,8 @@ def allow_port_ingress():
         return 1 # Return an error code
 
     log_message(3, f"Configuring firewall for inbound VPN traffic on port {vpn_port}.")
-    
+    network_config = get_network_config()
+
     try:
         # Note: The logic of removing/re-adding final drop rule is complex and potentially fragile.
         # Consider alternative approaches if possible (e.g., inserting rule at specific position).
@@ -199,13 +201,13 @@ def allow_port_ingress():
         log_message(3, "Temporarily removing final drop rule in input chain (if it exists).")
         remove_rules_by_comment('inet', 'filter', 'input', 'final-drop')
 
-        log_message(3, f"Adding nft rule to allow inbound traffic on port {vpn_port} from {WAN_IF} to host.")
-        run_command(f'nft add rule inet filter input iifname "{WAN_IF}" tcp dport {vpn_port} accept comment "inbound-vpn-rule"', sudo=True, shell=True)
+        log_message(3, f"Adding nft rule to allow inbound traffic on port {vpn_port} from {network_config.wan_interface} to host.")
+        run_command(f'nft add rule inet filter input iifname "{network_config.wan_interface}" tcp dport {vpn_port} accept comment "inbound-vpn-rule"', sudo=True, shell=True)
         log_message(2, f"Successfully added rule to allow inbound traffic on port {vpn_port}.")
 
-        log_message(3, f"Adding nft rule to forward inbound traffic on port {vpn_port} from {WAN_IF} to {VPN_IF}.")
-        run_command(f'nft add rule inet filter forward iifname "{WAN_IF}" oifname "{VPN_IF}" tcp dport {vpn_port} accept comment "wan-to-vpn-traffic-port"', sudo=True, shell=True)
-        log_message(2, f"Successfully added forwarding rule from {WAN_IF} to {VPN_IF} on port {vpn_port}.")
+        log_message(3, f"Adding nft rule to forward inbound traffic on port {vpn_port} from {network_config.wan_interface} to {VPN_IF}.")
+        run_command(f'nft add rule inet filter forward iifname "{network_config.wan_interface}" oifname "{VPN_IF}" tcp dport {vpn_port} accept comment "wan-to-vpn-traffic-port"', sudo=True, shell=True)
+        log_message(2, f"Successfully added forwarding rule from {network_config.wan_interface} to {VPN_IF} on port {vpn_port}.")
 
         log_message(3, "Re-adding the final drop rule in the input chain.")
         # Check if rule already exists before adding back

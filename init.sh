@@ -462,7 +462,7 @@ handle_nas_drives() {
                 source /mnt/keyexchange/nas_backup
             fi
         else
-            debug_log "No nas_backup.key found in /vault/.keys/"
+            debug_log "No nas_backup.key in /vault/.keys/; mountDrive.sh will use nas key for /mnt/nas_backup"
         fi
 
         # Attempt to mount (mount_drive will handle encrypted/unencrypted)

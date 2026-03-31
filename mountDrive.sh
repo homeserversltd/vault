@@ -192,9 +192,15 @@ log_message "Invocation received - action: ${ACTION}, device: ${DEVICE}, mount_p
 # Remove trailing slash from mount point if present
 MOUNT_POINT="${MOUNT_POINT%/}"
 
-# Which NAS key to use for LUKS open: backup mount point uses nas_backup key
+# Which NAS key to use for LUKS open: backup uses nas_backup only if that Keyman entry exists;
+# otherwise use nas (same passphrase as UI "Encrypt", which always uses exportNAS.sh nas).
 if [ "$MOUNT_POINT" = "/mnt/nas_backup" ]; then
-    NAS_KEY_NAME="nas_backup"
+    if [ -f "/vault/.keys/nas_backup.key" ]; then
+        NAS_KEY_NAME="nas_backup"
+    else
+        NAS_KEY_NAME="nas"
+        log_message "No /vault/.keys/nas_backup.key; using primary NAS key (nas) for $MOUNT_POINT"
+    fi
 else
     NAS_KEY_NAME="nas"
 fi

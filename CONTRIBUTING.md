@@ -287,7 +287,7 @@ Include in your PR:
 - No orphaned mount points: CONFIRMED
 
 ### Test Environment
-- OS: Debian 12
+- OS: Debian 13 (Trixie)
 - HOMESERVER version: [version]
 - Test setup: VM with LUKS partitions
 - Services tested: [list services]

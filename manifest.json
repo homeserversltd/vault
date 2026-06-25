@@ -1,0 +1,82 @@
+{
+  "schema": "homeserver.vault.payload.manifest.v1",
+  "repo": "HOMESERVERSLTD/vault",
+  "authority": "public vault payload source for HOMESERVER /vault/scripts runtime payloads",
+  "install_target": "/vault/scripts",
+  "install_method": "chrysalis packs this repository; target unpack moves/copies payload into /vault/scripts",
+  "install_owner": "root:root",
+  "directory_mode": "0755",
+  "executable_mode": "0755",
+  "deploy_order": {
+    "after": [
+      "keyman-first-module",
+      "sudoers-policy-placement"
+    ],
+    "before": [
+      "sbin-path-placement",
+      "systemd-units-placement",
+      "udev-rules-placement",
+      "linker-user-local-lib-placement"
+    ]
+  },
+  "consumers": {
+    "deployables": "birth-time pack/unpack of this repo into /vault/scripts after Keyman and sudoers exist",
+    "harmonia": "post-birth payload drift check and refresh of /vault/scripts",
+    "caduceus": "runtime actuator may call declared scripts through sudoers policy but does not own payload text"
+  },
+  "encryption_boundary": {
+    "vault_partition_label": "homeserver-vault",
+    "legacy_bootstrap_path": "/fulcrum/attachments/homeserver/initialization/startup/bootstrap.py:191-317",
+    "legacy_bootstrap_meaning": "legacy mode ran cryptsetup luksFormat on /dev/disk/by-partlabel/homeserver-vault using /root/key/skeleton.key, opened homeserver-vault_crypt, mkfs.ext4, then mounted /vault",
+    "modern_bootstrap_meaning": "non-legacy mode expected the vault partition to be preseed-configured and already mounted or mountable by partlabel",
+    "finale_cleanup_path": "/fulcrum/attachments/homeserver/initialization/flask/dev/devCleanup:753-963",
+    "finale_cleanup_meaning": "later finale rotated/verified a LUKS vault from the deploy ephemeral key to /root/key/skeleton.key",
+    "desired_chrysalis_boundary": "vault module should create/verify LUKS on homeserver-vault when safe/unformatted, open it with redacted Keyman skeleton authority, create filesystem if newly formatted, mount /vault, then move this payload into /vault/scripts",
+    "secret_values_allowed": false
+  },
+  "payload_files": [
+    ".gitignore",
+    "CONTRIBUTING.md",
+    "LICENSE",
+    "README.md",
+    "VERSION",
+    "closeNAS.sh",
+    "exportNAS.sh",
+    "exportServiceSuite.sh",
+    "init.sh",
+    "mountDrive.sh",
+    "src/LICENSE",
+    "src/README.md",
+    "src/__init__.py",
+    "src/config.json",
+    "src/config.py",
+    "src/logger.py",
+    "src/pia/README.md",
+    "src/pia/__init__.py",
+    "src/pia/api_client.py",
+    "src/pia/auth.py",
+    "src/pia/ca.rsa.4096.crt",
+    "src/pia/integration.py",
+    "src/pia/openvpn.py",
+    "src/pia/portforward.py",
+    "src/pia/regions.py",
+    "src/pia/wireguard.py",
+    "src/rpc.py",
+    "src/teardown.py",
+    "src/templateEngine.py",
+    "src/utils.py",
+    "src/vpn.py",
+    "teardown_standalone.py",
+    "transmission.py",
+    "unmountDrive.sh"
+  ],
+  "source_quarry": {
+    "path": "/fulcrum/attachments/homeserver/initialization/files/vault/scripts",
+    "legacy_update_module": "/fulcrum/attachments/homeserver/initialization/files/user_local_lib/updates/modules/vault/index.json"
+  },
+  "notes": [
+    "This repo is payload authority only; vault partition formatting/mount policy belongs to the deployable/Harmonia storage module.",
+    "Keyman owns secret material; this repo must not carry keys, passwords, deploy tokens, or decrypted exchange files.",
+    "The first placement preserves quarry parity; later tranches may split VPN/NAS/storage tools into narrower repos if earned."
+  ]
+}

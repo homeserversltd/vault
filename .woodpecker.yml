@@ -1,0 +1,19 @@
+when:
+  - event: push
+    branch: main
+
+steps:
+  - name: publish-vault-release
+    image: python:3.12-alpine
+    when:
+      - event: push
+        branch: main
+    environment:
+      FORGEJO_TOKEN:
+        from_secret: FORGEJO_TOKEN
+    commands:
+      - apk add --no-cache git
+      - >-
+        python3 -c "import urllib.request; data=urllib.request.urlopen('http://192.168.123.1:7100/v1/trust/ca-bundle', timeout=30).read(); assert data, 'empty house CA bundle'; open('/tmp/house-ca.pem', 'wb').write(data)"
+      - export SSL_CERT_FILE=/tmp/house-ca.pem
+      - python3 ci/release_publish.py

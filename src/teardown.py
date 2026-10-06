@@ -19,7 +19,6 @@ log_message = safe_log
 from .utils import run_command, remove_rules_by_comment, terminate_processes, find_pids
 
 # --- Configuration ---
-RAMDISK_MNT = Path("/mnt/ramdisk")
 PORT_FILE = Path("/tmp/port.pid")
 
 # Network configuration constants
@@ -53,7 +52,6 @@ def teardown_processes():
     log_message(3, "Terminating running processes...")
     
     # Kill VPN-related processes
-    terminate_processes(find_pids('port_forwarding.sh'))
     terminate_processes(find_pids('openvpn'))
     
     # Kill Transmission daemon running within the namespace
@@ -89,7 +87,6 @@ def teardown_processes():
     
     # Additional cleanup for any stray PIA processes
     terminate_processes(find_pids('pia'))
-    terminate_processes(find_pids('run_setup.sh'))
     
     log_message(2, "Process termination completed.")
 
@@ -130,8 +127,7 @@ def teardown_files():
     
     files_to_remove = [
         PORT_FILE,
-        f"{RAMDISK_MNT}/openvpn_auth.txt",
-        "/opt/piavpn-manual/pia.ovpn",  # OpenVPN config created by PIA script (accessible via shared filesystem)
+        "/opt/piavpn-manual/pia.ovpn",  # OpenVPN config created by PIA integration (shared filesystem)
     ]
     
     for file_path in files_to_remove:
@@ -347,7 +343,7 @@ def verify_teardown():
     
     # Check for remaining processes
     remaining_processes = []
-    process_patterns = ['port_forwarding.sh', 'openvpn', 'transmission-daemon']
+    process_patterns = ['openvpn', 'transmission-daemon']
     for pattern in process_patterns:
         pids = find_pids(pattern)
         if pids:
@@ -357,7 +353,7 @@ def verify_teardown():
         issues.append(f"Remaining processes: {remaining_processes}")
     
     # Check for remaining files
-    check_files = [PORT_FILE, Path(f"{RAMDISK_MNT}/openvpn_auth.txt")]
+    check_files = [PORT_FILE]
     remaining_files = [f for f in check_files if f.exists()]
     if remaining_files:
         issues.append(f"Remaining files: {remaining_files}")

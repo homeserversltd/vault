@@ -18,7 +18,7 @@ from .utils import (
     remove_rules_by_comment, terminate_processes, find_pids
 )
 from .vpn import (
-    initialize_network_interface, connect_vpn, connect_vpn_legacy, deconstruct_vpn_and_services,
+    initialize_network_interface, connect_vpn, deconstruct_vpn_and_services,
     get_vpn_port, set_vpn_port, VPN_NS, VPN_IF, TRANSMISSION_PORT, TRANSMISSION_CONFIG_DIR,
     disconnect_vpn_python
 )
@@ -60,7 +60,6 @@ __all__ = [
     # VPN functions
     'initialize_network_interface',
     'connect_vpn',
-    'connect_vpn_legacy',
     'deconstruct_vpn_and_services',
     'get_vpn_port',
     'set_vpn_port',

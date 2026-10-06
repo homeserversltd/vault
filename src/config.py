@@ -68,9 +68,7 @@ class PathConfig:
     """File system paths and directory configuration."""
     vault_dir: Path = field(default_factory=lambda: Path("/vault"))
     keys_dir: Path = field(init=False)
-    scripts_dir: Path = field(init=False)
     keyman_script: Path = field(init=False)
-    pia_connection_script: Path = field(init=False)
     
     # Runtime paths
     ramdisk_mount: Path = field(default_factory=lambda: Path("/mnt/ramdisk"))
@@ -86,9 +84,7 @@ class PathConfig:
         """Initialize derived paths and validate configuration."""
         # Derived paths from vault_dir
         self.keys_dir = self.vault_dir / ".keys"
-        self.scripts_dir = self.vault_dir / "scripts"
         self.keyman_script = self.vault_dir / "keyman" / "exportkey.sh"
-        self.pia_connection_script = self.scripts_dir / "manual-connections" / "run_setup.sh"
         
         # Derived paths from ramdisk_mount
         self.logs_dir = self.ramdisk_mount / "logs"
@@ -102,12 +98,10 @@ class PathConfig:
         if not self.vault_dir.exists():
             raise ValueError(f"Vault directory does not exist: {self.vault_dir}")
         
-        # Validate that critical scripts exist
-        critical_files = [self.keyman_script, self.pia_connection_script]
-        for file_path in critical_files:
-            if not file_path.exists():
-                # Use print instead of log_message during config validation
-                print(f"Warning: Critical file does not exist: {file_path}")
+        # Validate that the Keyman export script exists.
+        if not self.keyman_script.exists():
+            # Use print instead of log_message during config validation
+            print(f"Warning: Critical file does not exist: {self.keyman_script}")
 
 
 @dataclass

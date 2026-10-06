@@ -6,6 +6,7 @@ import argparse
 import sys
 import os
 import signal
+import stat
 from pathlib import Path
 
 # Import the modular components
@@ -41,6 +42,26 @@ log_message = None
 
 # Global flag to track if we're in the middle of teardown
 teardown_in_progress = False
+
+
+def check_owner_key(service_name):
+    """Return False only when the owner key is absent; reject unusable keys."""
+    key_file = KEYS_DIR / f"{service_name}.key"
+    try:
+        key_mode = key_file.lstat().st_mode
+    except FileNotFoundError:
+        return False
+    except OSError as e:
+        print(f"Cannot inspect {service_name} key at {key_file}: {e}", file=sys.stderr)
+        raise SystemExit(1)
+
+    if not stat.S_ISREG(key_mode):
+        print(f"{service_name} key is not a regular file: {key_file}", file=sys.stderr)
+        raise SystemExit(1)
+    if not os.access(key_file, os.R_OK):
+        print(f"{service_name} key is not readable: {key_file}", file=sys.stderr)
+        raise SystemExit(1)
+    return True
 
 
 def signal_handler(signum, frame):
@@ -259,10 +280,6 @@ def initialize_transmission():
 # --- Main Execution ---
 def main():
     """Main orchestrator function that coordinates all VPN and Transmission operations."""
-    # Set up signal handlers for graceful shutdown
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-    
     # Argument Parser
     parser = argparse.ArgumentParser(
         description="Professional-grade VPN and Transmission management for digital sovereignty."
@@ -282,6 +299,22 @@ def main():
         help="Stop VPN connection, transmission daemon, and perform cleanup."
     )
     args = parser.parse_args()
+
+    # Missing owner keys are an expected pre-runtime state, not a setup failure.
+    # --stop remains independent of credentials so cleanup still works.
+    if not args.stop:
+        missing_owner_key = None
+        for service_name in (PIA_SERVICE_NAME, TRANSMISSION_SERVICE_NAME):
+            if not check_owner_key(service_name):
+                if missing_owner_key is None:
+                    missing_owner_key = service_name
+        if missing_owner_key is not None:
+            print(f"transmission-awaiting-owner-key {missing_owner_key}")
+            return
+
+    # Set up signal handlers for graceful shutdown after the no-key fast path.
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
 
     # Import log_message after setup_logging initializes it
     setup_logging(args.verbosity)
@@ -330,14 +363,6 @@ def main():
              log_message(1, "This script requires root privileges or passwordless sudo access to manage network interfaces, namespaces, firewall rules, and services.")
              sys.exit(1)
 
-    # --- Prerequisite Checks ---
-    if not KEYS_DIR.joinpath(f"{PIA_SERVICE_NAME}.key").is_file():
-        log_message(1, f"No PIA service key found in {KEYS_DIR}")
-        sys.exit(1)
-    if not KEYS_DIR.joinpath(f"{TRANSMISSION_SERVICE_NAME}.key").is_file():
-        log_message(1, f"No transmission service key found in {KEYS_DIR}")
-        sys.exit(1)
-        
     # Check required commands exist
     required_commands = ['ip', 'nft', 'tee', 'sysctl', 'pgrep', 'kill', 'env', 'rm']
     for cmd in required_commands:

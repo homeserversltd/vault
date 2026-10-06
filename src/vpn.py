@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
 
-import subprocess
-import os
-import time
 import sys
 from pathlib import Path
 # Safe logging function that falls back to print
@@ -25,11 +22,7 @@ from .utils import (
 from .config import get_network_config
 
 # --- Configuration ---
-VAULT_DIR = Path("/vault")
-SCRIPTS_DIR = VAULT_DIR / "scripts"
-PIA_CONN_SCRIPT = SCRIPTS_DIR / "manual-connections" / "run_setup.sh"
 RAMDISK_MNT = Path("/mnt/ramdisk")
-LOGS_DIR = RAMDISK_MNT / "logs"
 PORT_FILE = Path("/tmp/port.pid")
 
 # Network configuration
@@ -233,53 +226,6 @@ def allow_port_ingress():
         return 1 # Failure
 
 
-def inject_auth_into_ovpn_config(auth_file):
-    """Ensure the OpenVPN config file has the auth-user-pass directive."""
-    ovpn_config = "/opt/piavpn-manual/pia.ovpn"
-    
-    # First check if the file exists - it might be created by the PIA script
-    if not os.path.exists(ovpn_config):
-        log_message(3, f"OpenVPN config file {ovpn_config} doesn't exist yet. Will inject auth later if needed.")
-        return
-    
-    # Check if auth-user-pass is already in the config
-    try:
-        with open(ovpn_config, 'r') as f:
-            content = f.read()
-        
-        if 'auth-user-pass' in content:
-            # Check if it has a path argument
-            auth_line_present = False
-            for line in content.splitlines():
-                if line.strip().startswith('auth-user-pass'):
-                    parts = line.strip().split(None, 1)
-                    if len(parts) > 1 and parts[1] == auth_file:
-                        log_message(3, f"Auth file {auth_file} already properly configured in {ovpn_config}")
-                        auth_line_present = True
-                        break
-            
-            if not auth_line_present:
-                # Replace existing auth-user-pass line with our path
-                new_content = []
-                for line in content.splitlines():
-                    if line.strip().startswith('auth-user-pass'):
-                        new_content.append(f"auth-user-pass {auth_file}")
-                    else:
-                        new_content.append(line)
-                
-                with open(ovpn_config, 'w') as f:
-                    f.write('\n'.join(new_content))
-                log_message(2, f"Updated auth-user-pass directive in {ovpn_config} to use {auth_file}")
-        else:
-            # Append auth-user-pass directive
-            with open(ovpn_config, 'a') as f:
-                f.write(f"\nauth-user-pass {auth_file}\n")
-            log_message(2, f"Added auth-user-pass directive to {ovpn_config} using {auth_file}")
-    
-    except Exception as e:
-        log_message(1, f"Error injecting auth into OpenVPN config: {e}")
-
-
 def connect_vpn(credentials):
     """
     Connects to PIA VPN using the new Python PIA integration system.
@@ -297,8 +243,8 @@ def connect_vpn(credentials):
         log_message(3, "Successfully loaded PIA Python integration")
     except ImportError as e:
         log_message(1, f"Failed to import PIA integration: {e}")
-        log_message(1, "Falling back to legacy bash script method...")
-        return connect_vpn_legacy(credentials)
+        log_message(1, "PIA Python integration is required; no shell fallback is available.")
+        sys.exit(1)
 
     # Ensure required directories are accessible in namespace
     log_message(3, "Ensuring required directories are accessible in VPN namespace...")
@@ -365,178 +311,21 @@ def connect_vpn(credentials):
             
     except Exception as e:
         log_message(1, f"PIA Python integration failed: {e}")
-        log_message(1, "Python integration is required - legacy bash script method is no longer supported.")
+        log_message(1, "The Python PIA integration is required.")
         sys.exit(1)
-
-
-def connect_vpn_legacy(credentials):
-    """
-    Legacy VPN connection method using bash scripts.
-    
-    This is the original connect_vpn implementation that uses the manual-connections
-    bash scripts. It's kept as a fallback in case the new Python integration fails.
-    """
-    global vpn_port
-    log_message(3, "Using legacy bash script VPN connection method...")
-
-    MAX_RETRIES = 5
-    RETRY_DELAY = 30  # seconds
-    FILE_CHECK_RETRIES = 3
-    FILE_CHECK_DELAY = 10 # seconds
-    VPN_PROCESS = None
-
-    pia_user = credentials.get("pia", {}).get("username")
-    pia_pass = credentials.get("pia", {}).get("password")
-
-    if not pia_user or not pia_pass:
-        log_message(1, "PIA credentials not found.")
-        sys.exit(1)
-    
-    # Create auth file for OpenVPN to avoid password prompt
-    auth_file = f"{RAMDISK_MNT}/openvpn_auth.txt"
-    try:
-        # Write auth file with username and password
-        with open(auth_file, 'w') as f:
-            f.write(f"{pia_user}\n{pia_pass}\n")
-        # Set secure permissions
-        os.chmod(auth_file, 0o600)
-        log_message(3, f"Created OpenVPN auth file at {auth_file}")
-        
-        # Check and update OpenVPN config if it already exists
-        inject_auth_into_ovpn_config(auth_file)
-    except Exception as e:
-        log_message(1, f"Failed to create auth file: {e}")
-        sys.exit(1)
-    
-    # Use direct environment variables rather than env dictionary
-    # This ensures variables are correctly passed to the namespace
-    
-    for attempt in range(1, MAX_RETRIES + 1):
-        log_message(3, f"Attempting to start legacy VPN connection, attempt {attempt} of {MAX_RETRIES}.")
-        log_message(4, f"Using PIA_USERNAME: {pia_user}")
-        log_message(4, "Using PIA_PASSWORD: [REDACTED]")
-
-        try:
-            # Create command with explicit environment variables and auth file
-            cmd = [
-                "sudo", "ip", "netns", "exec", VPN_NS, 
-                "env",
-                f"VPN_PROTOCOL=openvpn_udp_standard",
-                f"DISABLE_IPV6=yes",
-                f"DIP_TOKEN=no",
-                f"MAX_LATENCY=.1",
-                f"AUTOCONNECT=true",
-                f"PIA_PF=true",
-                f"PIA_DNS=true",
-                f"PIA_USER={pia_user}",
-                f"PIA_PASS={pia_pass}",
-                f"OVPN_AUTH_FILE={auth_file}", # Pass auth file path to PIA script
-                str(PIA_CONN_SCRIPT)
-            ]
-            
-            # Create sanitized log version that doesn't show password
-            cmd_str_log = ' '.join(cmd[:-3]) + f" PIA_USER={pia_user} PIA_PASS=[REDACTED] {cmd[-1]}"
-            log_message(5, f"Running legacy VPN script: {cmd_str_log}")
-
-            # Ensure OpenVPN config exists and has auth directive before starting process
-            ovpn_config = "/opt/piavpn-manual/pia.ovpn"
-            if os.path.exists(ovpn_config):
-                log_message(3, "OpenVPN config exists, ensuring auth directive is present...")
-                inject_auth_into_ovpn_config(auth_file)
-            
-            # Use subprocess.Popen with proper detachment and log file
-            vpn_log_file = LOGS_DIR / "vpn_process.log"
-            with open(vpn_log_file, "a") as vpn_log:
-                VPN_PROCESS = subprocess.Popen(
-                    cmd,
-                    stdout=vpn_log,
-                    stderr=subprocess.STDOUT,  # Redirect stderr to same log file
-                    preexec_fn=os.setsid,  # Create new session ID for full detachment
-                    text=True,
-                    bufsize=1,  # Line buffered
-                    universal_newlines=True
-                )
-            log_message(3, f"Legacy VPN script started (PID: {VPN_PROCESS.pid}) with output redirected to {vpn_log_file}")
-
-            # Wait for initial setup
-            time.sleep(30) # Initial wait
-            port_found = False
-            for check_attempt in range(1, FILE_CHECK_RETRIES + 1):
-                if PORT_FILE.exists():
-                    try:
-                        with open(PORT_FILE, 'r') as f:
-                            port_str = f.read().strip()
-                            vpn_port = int(port_str) # Validate it's an integer
-                        log_message(2, f"Legacy VPN connected. Port file found: using port {vpn_port}.")
-                        if allow_port_ingress() == 0: # Success adding firewall rules
-                           log_message(0, "Legacy VPN with port forwarding successfully connected.")
-                           # Don't wait for threads to complete - let them run in background
-                           return vpn_port # Success - return the port
-                        else:
-                            log_message(1, "Failed to configure firewall for the obtained port. Aborting this attempt.")
-                            port_found = False # Treat as failure if firewall rules fail
-                            break # Break inner loop
-                    except ValueError:
-                         log_message(1, f"Invalid content in port file '{PORT_FILE}'.")
-                         port_found = False
-                         break # Break inner loop
-                    except Exception as e:
-                         log_message(1, f"Error reading port file or setting firewall: {e}")
-                         port_found = False
-                         break # Break inner loop
-                else:
-                    log_message(3, f"Port number file not found, check attempt {check_attempt} of {FILE_CHECK_RETRIES}.")
-                    if check_attempt < FILE_CHECK_RETRIES:
-                        time.sleep(FILE_CHECK_DELAY)
-            
-            if not port_found: # If port file wasn't found or firewall failed
-                 log_message(1, f"Legacy VPN connection attempt {attempt} failed (port file/firewall issue).")
-                 # Terminate the background process if it's still running
-                 if VPN_PROCESS and VPN_PROCESS.poll() is None:
-                     log_message(3, f"Terminating legacy VPN script process (PID: {VPN_PROCESS.pid}).")
-                     VPN_PROCESS.terminate()
-                     try:
-                         VPN_PROCESS.wait(timeout=5) # Wait briefly for termination
-                     except subprocess.TimeoutExpired:
-                         log_message(1, f"Legacy VPN script process (PID: {VPN_PROCESS.pid}) did not terminate gracefully, sending KILL signal.")
-                         VPN_PROCESS.kill()
-                     VPN_PROCESS = None
-                 # Also kill stray related processes explicitly
-                 terminate_processes(find_pids('port_forwarding.sh'))
-                 terminate_processes(find_pids('openvpn'))
-
-        except Exception as e:
-            log_message(1, f"Error during legacy VPN connection attempt {attempt}: {e}")
-            if VPN_PROCESS and VPN_PROCESS.poll() is None:
-                VPN_PROCESS.terminate() # Ensure process is stopped on error
-                VPN_PROCESS = None
-            terminate_processes(find_pids('port_forwarding.sh'))
-            terminate_processes(find_pids('openvpn'))
-
-        # Retry delay if not the last attempt
-        if attempt < MAX_RETRIES:
-             log_message(3, f"Retrying legacy method after {RETRY_DELAY} seconds.")
-             time.sleep(RETRY_DELAY)
-
-    log_message(1, f"Legacy VPN connection failed after {MAX_RETRIES} attempts.")
-    # Final cleanup attempt
-    terminate_processes(find_pids('port_forwarding.sh'))
-    terminate_processes(find_pids('openvpn'))
-    # Clean up auth file
-    try:
-        if os.path.exists(auth_file):
-            os.unlink(auth_file)
-            log_message(3, f"Removed auth file {auth_file}")
-    except Exception as e:
-        log_message(1, f"Failed to remove auth file: {e}")
-    sys.exit(1)
 
 
 def disconnect_vpn_python():
     """Disconnect VPN using Python implementation."""
     log_message(3, "Disconnecting VPN using Python implementation...")
-    deconstruct_vpn_and_services()
+    try:
+        from .pia.integration import pia_cleanup_vpn
+        pia_cleanup_vpn()
+    except Exception as e:
+        log_message(1, f"PIA Python cleanup failed: {e}")
+        raise
     log_message(2, "VPN disconnected successfully.")
+    return True
 
 
 def deconstruct_vpn_and_services():
@@ -546,11 +335,8 @@ def deconstruct_vpn_and_services():
     # Stop processes
     log_message(3, "Terminating running processes...")
     
-    # First try to use the new Python PIA integration for clean disconnection
-    if not disconnect_vpn_python():
-        log_message(3, "Python disconnection failed, using legacy process termination...")
-        terminate_processes(find_pids('port_forwarding.sh'))
-        terminate_processes(find_pids('openvpn'))
+    # Disconnect through the sole supported Python PIA implementation.
+    disconnect_vpn_python()
     
     # Find transmission daemon running *within the namespace*
     terminate_processes(find_pids('transmission-daemon')) 
@@ -573,15 +359,6 @@ def deconstruct_vpn_and_services():
         except Exception as e:
              log_message(1, f"Warning: Failed to remove port file {PORT_FILE}: {e}")
     
-    # Clean up auth file if it exists
-    auth_file = f"{RAMDISK_MNT}/openvpn_auth.txt"
-    if os.path.exists(auth_file):
-        try:
-            os.unlink(auth_file)
-            log_message(3, f"Removed auth file {auth_file}")
-        except Exception as e:
-            log_message(1, f"Warning: Failed to remove auth file {auth_file}: {e}")
-
     # No bind mounts to clean up - using shared filesystem access
     log_message(3, "No bind mounts to clean up - using shared filesystem access")
 

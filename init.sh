@@ -444,6 +444,8 @@ handle_nas_drives() {
         else
             debug_log "Successfully mounted primary NAS drive: $nas_DRIVE"
         fi
+    elif [ -z "$nas_BACKUP_DRIVE" ]; then
+        info_log "No NAS yet: no NAS-compatible drives detected for mounting"
     else
         info_log "No NAS-compatible drives detected for mounting"
         ((mount_errors++))

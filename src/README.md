@@ -52,7 +52,7 @@ The HOMESERVER VPN/Transmission infrastructure represents a sophisticated, profe
 
 ### 1. **Initialization Phase**
 ```
-Vault Release → mountDrive.sh → Network Interface Setup → VPN Namespace Creation
+Vault Release → Network Interface Setup → VPN Namespace Creation
 ```
 
 ### 2. **VPN Connection Phase**
@@ -99,7 +99,7 @@ Signal Handling → Process Termination → Configuration Cleanup → Resource R
 
 ### **Vault System Integration**
 - Activated by vault release mechanisms
-- Integrates with `mountDrive.sh` for encrypted storage access
+- Integrates with vault-mounted storage
 - Uses vault-mounted credential storage
 - Maintains separation between confidential and operational code
 

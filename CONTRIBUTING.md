@@ -300,6 +300,29 @@ Include in your PR:
 
 Detailed, informative commit messages:
 
+```
+Improve LUKS unmounting reliability in unmountDrive.sh
+
+Enhanced unmounting process to handle edge cases:
+- Added retry logic with exponential backoff
+- Check for open files before unmount (lsof)
+- Graceful process termination before force unmount
+- Better error messages indicating specific failure reasons
+- Proper cleanup of device mapper resources
+
+Changes made:
+- unmountDrive.sh: Added pre-unmount checks and retry logic
+- Added helper function check_open_files()
+- Improved logging throughout unmount process
+
+Testing:
+- Tested normal unmount: SUCCESS
+- Tested with open files: PROCESSES terminated, then unmounted
+- Tested with busy mount: RETRIED successfully
+- Tested cleanup after failure: RESOURCES released properly
+
+Addresses issues seen when services hold file handles during unmount.
+```
 
 ## Pull Request Process
 
@@ -355,6 +378,10 @@ Infrastructure changes require thorough review and may take longer.
 ### Component Overview
 
 - **`init.sh`**: System initialization and service orchestration
+- **`mountDrive.sh`**: LUKS encrypted drive mounting with systemd integration
+- **`unmountDrive.sh`**: Safe drive unmounting and cleanup
+- **`exportNAS.sh`**: Secure key management integration
+- **`closeNAS.sh`**: Forced unmounting and cleanup
 - **`transmission.py`**: VPN-isolated Transmission with network namespaces
 
 ### Integration Points

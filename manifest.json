@@ -40,7 +40,11 @@
     "LICENSE",
     "README.md",
     "VERSION",
+    "closeNAS.sh",
+    "exportNAS.sh",
+    "exportServiceSuite.sh",
     "init.sh",
+    "mountDrive.sh",
     "src/LICENSE",
     "src/README.md",
     "src/__init__.py",
@@ -63,7 +67,8 @@
     "src/utils.py",
     "src/vpn.py",
     "teardown_standalone.py",
-    "transmission.py"
+    "transmission.py",
+    "unmountDrive.sh"
   ],
   "source_quarry": {
     "path": "/fulcrum/attachments/homeserver/initialization/files/vault/scripts",

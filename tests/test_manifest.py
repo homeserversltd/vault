@@ -25,6 +25,7 @@ class VaultManifestTest(unittest.TestCase):
 
     def test_payload_files_exist_and_no_secret_literals(self):
         doc = json.loads((ROOT / 'manifest.json').read_text())
+        self.assertIn('mountDrive.sh', doc['payload_files'])
         self.assertIn('init.sh', doc['payload_files'])
         forbidden = ['ROOT_PASSWORD=', 'FORGEJO_TOKEN=', 'DEPLOY_KEY=', 'BEGIN OPENSSH PRIVATE KEY']
         for rel in doc['payload_files']:
